@@ -1,0 +1,27 @@
+{
+  "name": "object_storage-_sample",
+  "version": "1.0.0",
+  "description": "implementing simple object storage ",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.19.0",
+    "cron": "^1.8.2",
+    "express": "^4.17.1",
+    "express-session": "^1.17.1",
+    "fs": "0.0.1-security",
+    "gridfs-stream": "^1.1.1",
+    "lodash": "^4.17.20",
+    "method-override": "^3.0.0",
+    "mongodb": "^3.6.0",
+    "mongoose": "^5.10.2",
+    "multer": "^1.4.2",
+    "multer-gridfs-storage": "^4.2.0",
+    "nodemon": "^2.0.4"
+  }
+}
