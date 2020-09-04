@@ -1,29 +1,17 @@
-/*const mongoose=require('mongoose');
-//const conn= mongoose.createConnection('mongodb://localhost:27017/object_storage');
-let db=mongoose.connect('mongodb://localhost:27017/Object_Storage_User_Mgmt',{ useUnifiedTopology: true, useNewUrlParser: true},(err)=>{
-if(!err)
-{
-    console.log('MongoDB connection to object Storage successful');
-}
-else{
-    console.log('MongoDB connection error : '+err);
-}
-});
-
-require('./models/schema');*/
-
 
 let MongoClient = require('mongodb').MongoClient;
+let mongodb = require('mongodb');
 //let url = 'mongodb://localhost:27017/Object_Storage_User_Mgmt';
 let url = 'mongodb://localhost:27017';
+let urlstorage = 'mongodb://localhost:27017/object_storage'
 
-function connectdb(){
-    return new Promise((resolve,reject)=>{
+function connectdb() {
+    return new Promise((resolve, reject) => {
         console.log("entered db connect");
-        MongoClient.connect(url, (err, client) => { 
-            if(err){
+        MongoClient.connect(url, (err, client) => {
+            if (err) {
                 reject(" Connection error");
-            }else{
+            } else {
                 console.log(" Connected to Mongo DB ");
                 /*let db=client.db(dbname);
                 console.log(" Connected to Object_Storage_User_Mgmt "+db);
@@ -35,10 +23,28 @@ function connectdb(){
                             console.log(doc);
                         }
                     });*/
-                resolve(client);  
+                resolve(client);
             }
         });
-    });   
+    });
 }
 
-module.exports={connectdb};
+/*function connectdbstorage(bktname) {
+    return new Promise((resolve, reject) => {
+        console.log("entered db connectdbstorage");
+        mongodb.MongoClient.connect(urlstorage, function (err, db) {
+            if (err) {
+                reject(" Connection error");
+            } else {
+                console.log("connected to storage db " + bktname);
+                let bucket = new mongodb.GridFSBucket(db, {
+                    bucketName: bktname
+                });
+                resolve(bucket)
+            }
+        });
+    });
+}*/
+
+
+module.exports = { connectdb };

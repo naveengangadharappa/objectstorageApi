@@ -16,7 +16,6 @@ let gfs;
 let conn = mongoose.createConnection(mongouri);
 let bktname = 'Ipas';
 conn.once('open', () => {
-    //initaling stream
     gfs = Grid(conn.db, mongoose.mongo);
     gfs.collection(bktname);
     console.log('bucket initalised');
@@ -25,6 +24,7 @@ conn.once('open', () => {
 
 let storage = new GridFsStorage({
     url: mongouri,
+    options: { useNewUrlParser: true, useUnifiedTopology: true },
     //url:getdburl(req),
     file: (req, file) => {
         return new Promise((resolve, reject) => {
@@ -36,8 +36,9 @@ let storage = new GridFsStorage({
                 const fileinfo = {
                     filename: filename,
                     //bucketName: 'file-objects'
-                    bucketName: "Ipas"
+                    bucketName: req.headers["project"],
                 };
+                console.log("inserting fie");
                 dbfunctions.insertfiles(filename, file.originalname, req.headers["project"], "").then((result) => {
                     if (result) {
                         resolve(fileinfo);
@@ -46,269 +47,208 @@ let storage = new GridFsStorage({
                     console.log(err);
                     reject("DB error");
                 });
-
             });
         });
     }
 });
 
-const upload = multer({ storage });
+
+
+const uploadFilter = (req, file, cb) => {
+    let prj = req.headers["project"];
+    let token = req.headers["token"];
+    let projects = dbfunctions.projectsjson.projects;
+    let project = projects.filter(prjdata => {
+        if (prjdata.prjid == prj) { return prjdata }
+    })
+    console.log("project =", (project));
+    if (project.length > 0 && token == project[0].token) {
+        gfs.collection(req.headers["project"]);
+        cb(null, true);
+    } else {
+        cb(null, false);
+    }
+}
+
+const upload = multer({
+    storage: storage,
+    fileFilter: uploadFilter,
+});
 const upload1 = multer({
     storage: storage,
-    fileFilter: function (req, files, callback) {
-        console.log("enterd call back");
-        let prj = req.headers["project"];
-        let token = req.headers["token"];
-        for (let i = 0; i < dbfunctions.projects.length; i++) {
-            if (dbfunctions.projects[i].prjid == prj) {
-                if (dbfunctions.projects[i].token == token) {
-                    console.log("dbbkt " + dbfunctions.projects[i].dbbucket);
-                    bktname = dbfunctions.projects[i].dbbucket;
-                    conn.once('open', () => {
-                        //initaling stream
-                        gfs = Grid(conn.db, mongoose.mongo);
-                        gfs.collection(bktname);
-                    })
+    fileFilter: uploadFilter,
+}).single('file');
 
-                    callback(null, true);
-                    break;
-                } else {
-                    callback(null, false);
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-        callback(null, false);
-    },
-    // limits: {1024*1024}  
-});
-
-const arrUpload = upload.array('file', 4);
+const arrUpload = upload.array('file', 2);
 
 router.get('/', (req, res) => {
     try {
-        let prj = req.headers["project"];
+        /*let prj = req.headers["project"];
         let token = req.headers["token"];
-        for (let i = 0; i < projects.length; i++) {
-            if (dbfunctions.projects[i].prjid == prj) {
-                if (dbfunctions.projects[i].token == token) {
-                    res.json({ message: "Connected to object storage of " + prj, status: true });
-
-                    break;
-                } else {
-                    res.json({ message: "Token Mismatch ", status: false });
-                    break;
-                }
-            } else {
-                res.json({ message: "Project Not Found", status: true });
-            }
-        }
+        let project = dbfunctions.projects.filter(prjdata => {
+            if (prjdata.prjid == prj) { return prjdata }
+        })
+        console.log("project =", (project));
+        let response = project.length > 0 ? token == project[0].token ? { message: "Connected to object storage of " + prj, status: true } : { message: "Token Mismatch ", status: false } : { message: "Project not found ", status: false }
+        res.json(response);*/
+        dbfunctions.loadprojects().then(result => {
+            res.json({ message: "Successfully Connected to object storage, Welcome !!!!!", status: true });
+        }).catch(err => {
+            console.log(err);
+        })
     } catch (err) {
         console.log(err);
-        res.json({ message: "Please include Api Token" });
+        res.json({ message: "Error in connecting to object storage" });
     }
 });
 
 
-/*app.post('/rest/upload',
-upload.fields([{
-    name: 'video', maxCount: 1
-  }, {
-    name: 'subtitles', maxCount: 1
-  }]), function(req, res, next){
-// ...
-}*/
-
 //router.post('/upload_file',upload.single('file'),(req,res)=>{
-router.post('/upload_file', upload1.single('file'), (req, res) => {
+router.post('/upload_file', upload1, (req, res) => {
     try {
         console.log("entering to response");
-        /*if (req.file === undefined){
-            //console.log(req.file);
-            response={message:"No file selected to upload",status:false}; 
-            res.json(response);       
-        }else{*/
         let prj = req.headers["project"];
         let token = req.headers["token"];
-        let response = {};
-        for (let i = 0; i < dbfunctions.projects.length; i++) {
-            if (dbfunctions.projects[i].prjid == prj) {
-                if (dbfunctions.projects[i].token == token) {
-                    response = { filedetails: req.file, message: "File Upload Successfull", status: true };
-                    break;
-                } else {
-                    response = { filedetails: [], message: "Token missmatch", status: false };
-                    break;
-                }
-            } else {
-                response = { filedetails: [], message: "Project not found", status: false };
-            }
-        }
+        let projects = dbfunctions.projectsjson.projects;
+        let project = projects.filter(prjdata => {
+            if (prjdata.prjid == prj) { return prjdata }
+        })
+        let response = project.length > 0 ?
+            token == project[0].token ?
+                req.file == undefined ? { message: "Sorry File Upload UnSuccessfull", status: false } : { filedetails: req.file, message: "Files Upload Successfull", status: true }
+                : { message: "Token Mismatch ", status: false }
+            : { message: "Project not found ", status: false }
         res.json(response);
-        // }      
     } catch (err) {
         console.log(err);
         res.status(404).json({ message: "Please include Api Token" });
     }
 });
 
+
 router.post('/upload_files', arrUpload, (req, res, next) => {
     try {
+        console.log("entering to response");
         let prj = req.headers["project"];
         let token = req.headers["token"];
-        let response = {};
-        for (let i = 0; i < dbfunctions.projects.length; i++) {
-            if (dbfunctions.projects[i].prjid == prj) {
-                if (dbfunctions.projects[i].token == token) {
-                    console.log(req.file);
-                    response = { filedetails: req.files, message: "File Upload Successfull", status: true };
-                    break;
-                } else {
-                    response = { filedetails: [], message: "Token missmatch", status: false };
-                    break;
-                }
-            } else {
-                response = { filedetails: [], message: "Project not found", status: false };
-            }
-        }
+        let projects = dbfunctions.projectsjson.projects;
+        let project = projects.filter(prjdata => {
+            if (prjdata.prjid == prj) { return prjdata }
+        })
+        let response = project.length > 0 ?
+            token == project[0].token ?
+                req.files.length <= 0 ? { message: "Sorry File Upload UnSuccessfull", status: false } : { filedetails: req.files, message: "Files Upload Successfull", status: true }
+                : { message: "Token Mismatch ", status: false }
+            : { message: "Project not found ", status: false }
         res.json(response);
     } catch (err) {
-        console.log(err)
-        res.status(404).json({ message: "Please include Api Token/Token MissMatch" });
+        console.log(err);
+        res.status(404).json({ message: "Please include Api Token" });
     }
 })
 
-//router.get('/get_file/:fname', (req, res) => {
+
 router.get('/get_file', (req, res) => {
     try {
-        console.log(req.query.fname);
-        if (req.query.fname === undefined || req.query.fname == null || req.query.fname == "") {
-            res.json({ message: "Please Pass File Name in request field fname", status: false });
-        }
-        else {
-            console.log(req.query.fname);
+        let prj = req.headers["project"];
+        let token = req.headers["token"];
+        let projects = dbfunctions.projectsjson.projects;
+        let project = projects.filter(prjdata => {
+            if (prjdata.prjid == prj) { return prjdata }
+        })
+        if (project.length > 0 && token == project[0].token) {
+            gfs.collection(req.headers["project"]);
             gfs.files.findOne({ filename: req.query.fname }, (err, file) => {
-                //gfs.findOne({ filename: req.body.fname }, (err, file) => {
                 if (err) {
                     console.log(err);
                 } else {
-                    console.log("entered else");
-                    // console.log("file length = " + file.length());
-                    console.log("file Content type = " + file.contentType);
                     if (!file) {
                         return res.status(404).json({
-                            err: 'file Not Exists '
+                            message: 'file Not Exists ',
+                            status: false
                         });
                     } else {
-                        if (file.contentType === "image/jpeg" || file.contentType === "image/png") {
-                            res.writeHead(200, { 'Content-Type': file.contentType })
-                            let readstream = gfs.createReadStream(file.filename);
-                            //res.pipe(readstream);
-                            readstream.pipe(res)
-                        } else {
-                            console.log(file.filename);
-                            res.writeHead(200, { 'Content-Type': file.contentType })
-                            let readstream = gfs.createReadStream(file.filename);
-                            //res.pipe(readstream);
-                            readstream.pipe(res)
-                        }
+                        console.log(file);
+                        res.writeHead(200, { 'Content-Type': file.contentType });
+                        let readstream = gfs.createReadStream({ filename: file.filename });
+                        readstream.pipe(res);
                     }
                 }
             })
-            /*let prj = req.headers["project"];
-            let token = req.headers["token"];
-            for (let i = 0; i < dbfunctions.projects.length; i++) {
-                if (dbfunctions.projects[i].prjid == prj) {
-                    if (dbfunctions.projects[i].token == token) {
-                        gfs.files.findOne({ filename: req.query.fname }, (err, file) => {
-                            //gfs.findOne({ filename: req.body.fname }, (err, file) => {
-                            if (err) {
-                                console.log(err);
-                            } else {
-                                console.log("entered else");
-                                // console.log("file length = " + file.length());
-                                console.log("file Content type = " + file.contentType);
-                                if (!file) {
-                                    return res.status(404).json({
-                                        err: 'file Not Exists '
-                                    });
-                                } else {
-                                    if (file.contentType === "image/jpeg" || file.contentType === "image/png") {
-                                        let readstream = gfs.createReadStream(file.filename);
-                                        readstream.pipe(res)
-                                    } else {
-                                        let readstream = gfs.createReadStream(file.filename);
-                                        readstream.pipe(res)
-                                    }
-                                }
-                            }
-                        })
-                        break;
-                    } else {
-                        res.json({ message: "Token Mismatch ", status: false });
-                        break;
-                    }
-                } else {
-                    res.json({ message: "Project Not Found", status: false });
-                }
-            }*/
+        } else {
+            res.json(project.length > 0 ? { message: "Token Mismatch ", status: false } : { message: "Project not found ", status: false })
         }
     } catch (err) {
+        console.log(err);
         res.status(404).json({ message: "Please include Api Token" });
     }
 })
 
 router.post('/get_file', (req, res) => {
     try {
-        if (req.body.fname === undefined || req.body.fname == null || req.body.fname == "") {
-            res.json({ message: "Please Pass File Name in request field fname", status: false });
-        }
-        else {
-            console.log("file name = " + req.body.fname);
-            let prj = req.headers["project"];
-            let token = req.headers["token"];
-            for (let i = 0; i < dbfunctions.projects.length; i++) {
-                if (dbfunctions.projects[i].prjid == prj) {
-                    if (dbfunctions.projects[i].token == token) {
-                        gfs.files.findOne({ filename: req.body.fname }, (err, file) => {
-                            //gfs.findOne({ filename: req.body.fname }, (err, file) => {
-                            if (err) {
-                                console.log(err);
-                            } else {
-                                console.log("entered else");
-                                // console.log("file length = " + file.length());
-                                console.log("file Content type = " + file.contentType);
-                                if (!file) {
-                                    return res.status(404).json({
-                                        err: 'file Not Exists '
-                                    });
-                                } else {
-                                    if (file.contentType === "image/jpeg" || file.contentType === "image/png") {
-                                        let readstream = gfs.createReadStream(file.filename);
-                                        readstream.pipe(res)
-                                    } else {
-                                        let readstream = gfs.createReadStream(file.filename);
-                                        readstream.pipe(res)
-                                    }
-                                }
-                            }
-                        })
-                        break;
-                    } else {
-                        res.json({ message: "Token Mismatch ", status: false });
-                        break;
-                    }
+        let prj = req.headers["project"];
+        let token = req.headers["token"];
+        let projects = dbfunctions.projectsjson.projects;
+        let project = projects.filter(prjdata => {
+            if (prjdata.prjid == prj) { return prjdata }
+        })
+        if (project.length > 0 && token == project[0].token) {
+            gfs.collection(req.headers["project"]);
+            gfs.files.findOne({ filename: req.body.fname }, (err, file) => {
+                if (err) {
+                    console.log(err);
                 } else {
-                    res.json({ message: "Project Not Found", status: false });
+                    console.log(file);
+                    if (!file) {
+                        return res.status(404).json({
+                            message: 'file Not Exists ',
+                            status: false
+                        });
+                    } else {
+                        res.writeHead(200, { 'Content-Type': file.contentType });
+                        let readstream = gfs.createReadStream({ filename: file.filename });
+                        readstream.pipe(res);
+                    }
                 }
-            }
+            })
+        } else {
+            res.json(project.length > 0 ? { message: "Token Mismatch ", status: false } : { message: "Project not found ", status: false })
         }
     } catch (err) {
         res.status(404).json({ message: "Please include Api Token" });
     }
 })
+
+router.get('/get_live_stream', (req, res) => {
+    try {
+        console.log("fname =" + req.query.fname)
+        var trackID = new ObjectID(req.query.fname);
+        console.log("trackid=" + trackID);
+    } catch (err) {
+        return res.status(400).json({ message: "Invalid trackID in URL parameter. Must be a single String of 12 bytes or a string of 24 hex characters" });
+    }
+    res.set('content-type', 'audio/mp3');
+    res.set('accept-ranges', 'bytes');
+
+    let bucket = new mongodb.GridFSBucket(mongoconnection, {
+        bucketName: bktname
+    });
+
+    let downloadStream = bucket.openDownloadStream(trackID);
+
+    downloadStream.on('data', (chunk) => {
+        res.write(chunk);
+    });
+
+    downloadStream.on('error', () => {
+        res.sendStatus(404);
+    });
+
+    downloadStream.on('end', () => {
+        res.end();
+    });
+});
+
 
 router.post('/get_live_stream', (req, res) => {
     try {
@@ -446,8 +386,9 @@ router.post('/get_Allfiledetails', (req, res) => {
 
 router.post('/insertuser', (req, res) => {
     try {
+        let sess = req.session;
         let token = req.headers['token'];
-        if (token == "mytoken") {
+        if (token == sess.token) {
             dbfunctions.insertuser(req).then((result) => {
                 if (result) {
                     res.status(200).json({ message: "Insert sucessfull", status: true });
@@ -469,8 +410,9 @@ router.post('/insertuser', (req, res) => {
 
 router.post('/insertProject', (req, res) => {
     try {
+        let sess = req.session;
         let token = req.headers['token'];
-        if (token == "mytoken") {
+        if (token == sess.token) {
             dbfunctions.insertprojects(req).then((result) => {
                 if (result.status) {
                     res.status(200).json(result);
@@ -490,26 +432,47 @@ router.post('/insertProject', (req, res) => {
     }
 })
 
-router.post('/Login', (req, res) => {
+router.post('/deleteProject', (req, res) => {
     try {
         let sess = req.session;
         let token = req.headers['token'];
-        if (token == "mytoken") {
-            dbfunctions.userlogin(req).then((result) => {
+        if (token == sess.token) {
+            dbfunctions.deleteprojects(req).then((result) => {
                 if (result.status) {
-                    sess.uid = req.body.uid;
-                    console.log(sess.uid);
-                    res.status(200).json({ message: result.msg, status: true });
+                    res.status(200).json(result);
                 } else {
-                    res.status(200).json({ message: result.msg, status: false });
+                    res.status(200).json(result);
                 }
             }).catch((err) => {
-                //console.log(err);
+                console.log(err);
                 res.status(500).json({ message: "Data base error", status: false });
             })
         } else {
-            res.status(500).json({ message: "Token MissMatch", status: false });
+            res.status(404).json({ message: "Token MissMatch", status: false });
         }
+    } catch (err) {
+        console.log(err);
+        res.status(404).json({ message: "Please include Api Token", status: false });
+    }
+})
+
+router.post('/Login', (req, res) => {
+    try {
+        let sess = req.session;
+        dbfunctions.userlogin(req).then((result) => {
+            if (result.status) {
+                sess.uid = req.body.uid;
+                sess.token = result.token;
+                console.log(sess.uid);
+                console.log(sess.token);
+                res.status(200).json(result);
+            } else {
+                res.status(200).json({ message: result.msg, status: false });
+            }
+        }).catch((err) => {
+            console.log(err);
+            res.status(500).json({ message: "Data base error", status: false });
+        })
     } catch (err) {
         console.log(err);
         res.status(500).json({ message: "Please include Api Token", status: false });
@@ -521,7 +484,7 @@ router.post('/requestProjectApproval', (req, res) => {
     try {
         let sess = req.session;
         let token = req.headers['token'];
-        if (token == "mytoken") {
+        if (token == sess.token) {
             console.log("Uid = " + sess.uid);
             dbfunctions.insertmapping(req, sess.uid).then((result) => {
                 if (result.status) {
@@ -547,7 +510,7 @@ router.post('/ProjectApproval', (req, res) => {
     try {
         let sess = req.session;
         let token = req.headers['token'];
-        if (token == "mytoken") {
+        if (token == sess.token) {
             dbfunctions.updateprojectmapping(req).then((result) => {
                 if (result.status) {
                     res.status(200).json(result);
@@ -569,8 +532,9 @@ router.post('/ProjectApproval', (req, res) => {
 
 router.post('/getAllUsers', (req, res) => {
     try {
+        let sess = req.session;
         let token = req.headers['token'];
-        if (token == "mytoken") {
+        if (token == sess.token) {
             dbfunctions.getAllusers().then((result) => {
                 if (result.status) {
                     res.status(200).json(result);
@@ -592,8 +556,9 @@ router.post('/getAllUsers', (req, res) => {
 
 router.post('/getAllProjects', (req, res) => {
     try {
+        let sess = req.session;
         let token = req.headers['token'];
-        if (token == "mytoken") {
+        if (token == sess.token) {
             dbfunctions.getAllprojects().then((result) => {
                 if (result.status) {
                     res.status(200).json(result);
@@ -615,8 +580,9 @@ router.post('/getAllProjects', (req, res) => {
 
 router.post('/getAllManagers', (req, res) => {
     try {
+        let sess = req.session;
         let token = req.headers['token'];
-        if (token == "mytoken") {
+        if (token == sess.token) {
             dbfunctions.getAllMgrs().then((result) => {
                 if (result.status) {
                     res.status(200).json(result);
@@ -640,7 +606,7 @@ router.post('/getUserProjects', (req, res) => {
     try {
         let sess = req.session;
         let token = req.headers['token'];
-        if (token == "mytoken") {
+        if (token == sess.token) {
             dbfunctions.getuserprj(sess.uid).then((result) => {
                 if (result.status) {
                     res.status(200).json(result);
@@ -662,8 +628,9 @@ router.post('/getUserProjects', (req, res) => {
 
 router.post('/logout', (req, res) => {
     try {
+        let sess = req.session;
         let token = req.headers['token'];
-        if (token == "mytoken") {
+        if (token == sess.token) {
             req.session.destroy((err) => {
                 if (err) {
                     return console.log(err);
@@ -679,8 +646,6 @@ router.post('/logout', (req, res) => {
         res.status(404).json({ message: "Please include Api Token", status: false });
     }
 })
-
-
 
 router.post('/backupAll', (req, res) => {
     try {

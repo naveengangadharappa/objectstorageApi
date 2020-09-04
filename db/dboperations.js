@@ -1,19 +1,30 @@
 const mongoose = require('mongoose');
 const conn = require('./db_connect');
-const MongoClient = require('mongodb').MongoClient;
+const updateJsonFile = require('update-json-file')
+const projectsjson = require('./Projects.json');
+const { functions } = require('lodash');
+//const conn = dbcon.connectdb();
+//const MongoClient = require('mongodb').MongoClient;
 /*const Users=mongoose.model('users');
 const Projects=mongoose.model('projects');
 const Files=mongoose.model('files');
 const Approval=mongoose.model('approval');
 const Pmapping=mongoose.model('pmapping');*/
-let dbname = 'Object_Storage_User_Mgmt'
-const projects = [
-    {
-        prjid: "ipas",
-        dbbucket: 'Ipas',
-        backup: true,
-        token: "ipastoken"
-    }];
+let dbname = 'Object_Storage_User_Mgmt';
+
+let salt = async function (data) {
+    return new Promise((resolve, reject) => {
+        try {
+            let saltkey = "My000K^Y";
+            let tempdata = String(data);
+            tempdata = saltkey.substring(0, 2) + tempdata.substring(0, tempdata.length / 2) + saltkey.substring(2, 5) + tempdata.substring(tempdata.length / 2 + 1, tempdata.length) + saltkey.substring(5, 8);
+            resolve(tempdata.split('').reverse().join('')); //reverse of string
+        } catch (err) {
+            console.log(err);
+            resolve("");
+        }
+    })
+}
 
 let generate_id = async function () {
     return new Promise((resolve, reject) => {
@@ -22,6 +33,35 @@ let generate_id = async function () {
         console.log(Math.random() * Math.floor(1234598745));
         resolve(Math.round(Math.random() * Math.floor(1234598745) + new Date().getTime()));
     });
+}
+
+let loadprojects = async function () {
+    try {
+        let projectsdata = await getAllprojects();
+        if (projectsdata.status) {
+            let prj = projectsdata.data.map(item => {
+                console.log(item);
+                return ({
+                    prjid: item.p_name,
+                    dbbucket: item.p_name,
+                    backup: true,
+                    token: item.p_token
+                })
+            });
+            updateJsonFile('./db/Projects.json', (data) => {
+                data.projects = prj;
+                return data
+            })
+            // projects.splice(0)
+            // projects = prj;
+            return ({ data: prj, msg: "List of all Projects", status: true });
+        } else {
+            return ({ msg: "unable to get  Projects", status: false });
+        }
+    } catch (err) {
+        console.log(err)
+        return ({ status: false });
+    }
 }
 
 let insertuser = async function (req) {
@@ -41,7 +81,7 @@ let insertuser = async function (req) {
             db.collection('users').insertOne(insert_obj, (err) => {
                 if (err) {
                     console.log("error");
-                    resolve(false);
+                    resolve({ msg: " User already Exists", status: false })
                 } else {
                     console.log("error successfull");
                     resolve(true);
@@ -84,20 +124,20 @@ let insertprojects = async function (req) {
                     reject(err);
                 } else {
                     if (res == null) {
-                        resolve({ msg: "Manager Doesn't Exists ", status: false });
+                        resolve({ message: "Manager Doesn't Exists ", status: false });
                     } else {
                         db.collection('projects').insertOne(insert_obj, (err) => {
                             if (err) {
-                                reject(err)
+                                resolve({ message: " Project name already Exists", status: false });
                             } else {
-                                projects.push({
-                                    prjid: Pid,
-                                    backup: true,
-                                    collectionname: "file-objects",
-                                    token: ptoken,
-                                    dbbucket: req.body.pname,
-                                });
-                                resolve({ msg: "Project created successfull", Project_id: Pid, P_token: ptoken, status: true });
+                                loadprojects().then(result => {
+                                    if (result.status) {
+                                        resolve({ message: "Project created successfull", Project_id: Pid, P_token: ptoken, status: true });
+                                    }
+                                }).catch(err => {
+                                    console.log(err);
+                                    resolve({ message: " Project creation Unsuccessfull", status: false });
+                                })
                             }
                         });
                     }
@@ -107,6 +147,35 @@ let insertprojects = async function (req) {
         });
     } catch (err) {
         console.log("error " + err);
+        resolve({ message: " Project creation Unsuccessfull", status: false })
+    }
+}
+
+
+let deleteprojects = async function (req) {
+    try {
+        let dbclient = await conn.connectdb();
+        let db = dbclient.db(dbname);
+        return new Promise((resolve, reject) => {
+            db.collection('projects').deleteOne({ p_name: req.body.pname, p_token: req.body.ptoken }, (err) => {
+                if (err) {
+                    console("error :", (err));
+                    resolve({ message: " Project name Not Exists", status: false });
+                } else {
+                    loadprojects().then(result => {
+                        if (result.status) {
+                            resolve({ message: "Project deleted successfull", Project_id: pname, P_token: ptoken, status: true });
+                        }
+                    }).catch(err => {
+                        console.log(err);
+                        resolve({ message: "Sorry Project deletion unsuccessfull ", status: false });
+                    })
+                }
+            });
+        });
+    } catch (err) {
+        console.log("error " + err);
+        resolve({ message: "Sorry Project deletion unsuccessfull ", status: false })
     }
 }
 
@@ -169,7 +238,7 @@ let updateprojectmapping = async function (req) {
         let db = dbclient.db(dbname);
         let query_obj = {
             u_id: req.body.uid,
-            p_id: req.body.pid
+            p_name: req.body.pname
         };
         pstatus = (req.body.status == "true" || req.body.status) ? true : false;
         return new Promise((resolve, reject) => {
@@ -195,7 +264,7 @@ async function insertmapping(req, uid) {
         let db = dbclient.db(dbname);
         let insert_obj = {
             u_id: uid,
-            p_id: req.body.pid,
+            p_name: req.body.pname,
             p_status: false,
         };
         return new Promise((resolve, reject) => {
@@ -263,7 +332,7 @@ async function getAllMgrs() {
     }
 }
 
-async function getAllprojects(req) {
+async function getAllprojects() {
     try {
         let result = [];
         let dbclient = await conn.connectdb();
@@ -274,11 +343,11 @@ async function getAllprojects(req) {
                 if (err) {
                     reject("Error in Projects fecthing");
                 } else {
-                    console.log(doc);
-                    result.push(doc);
+                    console.log("each doc", (doc));
+                    if (doc != null) { result.push(doc) };
+                    resolve({ data: result, msg: "List of all Projects", status: true });
                 }
             });
-            resolve({ data: result, msg: "List of all Projects", status: true });
         });
     } catch (err) {
         console.log("error " + err);
@@ -300,7 +369,15 @@ async function userlogin(req) {
                         if (res == null) {
                             resolve({ msg: "User Doesn't Exists/Password Mismatch ", status: false });
                         } else if (res.u_status) {
-                            resolve({ msg: "Login Successfull ", status: true });
+                            generate_id().then(usertoken => {
+                                console.log("generated token =" + usertoken);
+                                salt(usertoken).then(finaltoken => {
+                                    console.log("salted token =" + finaltoken);
+                                    resolve({ msg: "Login Successfull ", token: finaltoken, status: true });
+                                }).catch(err => { console.log(err) })
+                            }).catch(err => {
+                                console.log(err)
+                            })
                         } else {
                             resolve({ msg: "This User is blocked Please contact your manager ", status: false });
                         }
@@ -416,4 +493,4 @@ async function backupcollection(req) {
 
 
 
-module.exports = { projects, insertfiles, insertuser, insertmapping, insertprojects, insertprojectapproval, userlogin, updateprojectmapping, getAllMgrs, getAllprojects, getAllusers, getuserprj, search, backupcollection };
+module.exports = { projectsjson, deleteprojects, insertfiles, insertuser, insertmapping, insertprojects, insertprojectapproval, userlogin, updateprojectmapping, getAllMgrs, getAllprojects, getAllusers, getuserprj, search, backupcollection, loadprojects };

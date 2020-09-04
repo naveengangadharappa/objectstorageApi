@@ -1,0 +1,28 @@
+{
+  "projects": [
+    {
+      "prjid": "Ipas",
+      "dbbucket": "Ipas",
+      "backup": true,
+      "token": "1599624688920"
+    },
+    {
+      "prjid": "mcgm",
+      "dbbucket": "mcgm",
+      "backup": true,
+      "token": "1599568794516"
+    },
+    {
+      "prjid": "crm",
+      "dbbucket": "crm",
+      "backup": true,
+      "token": "1599193855605"
+    },
+    {
+      "prjid": "aaplus",
+      "dbbucket": "aaplus",
+      "backup": true,
+      "token": "1599364561692"
+    }
+  ]
+}
