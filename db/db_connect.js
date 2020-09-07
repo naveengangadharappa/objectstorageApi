@@ -3,7 +3,7 @@ let MongoClient = require('mongodb').MongoClient;
 let mongodb = require('mongodb');
 //let url = 'mongodb://localhost:27017/Object_Storage_User_Mgmt';
 let url = 'mongodb://localhost:27017';
-let urlstorage = 'mongodb://localhost:27017/object_storage'
+let urlstorage = 'mongodb://localhost:27017/object_storage naveen -u 1BI16cs413 -p --auth'
 
 function connectdb() {
     return new Promise((resolve, reject) => {

@@ -10,7 +10,7 @@ const methodOverride = require('method-override');
 const router = express.Router();
 let mongoconnection = require('./db/db_connect');
 var dbfunctions = require('./db/dboperations');
-let mongouri = 'mongodb://localhost:27017/object_storage';
+let mongouri = 'mongodb://localhost:27017/object_storage naveen -u 1BI16cs413 -p --auth';
 let gfs;
 
 let conn = mongoose.createConnection(mongouri);
