@@ -132,7 +132,7 @@ let insertprojects = async function (req) {
                             } else {
                                 loadprojects().then(result => {
                                     if (result.status) {
-                                        resolve({ message: "Project created successfull", Project_id: Pid, P_token: ptoken, status: true });
+                                        resolve({ message: "Project created successfull", Project_name: req.body.pname, P_token: ptoken, status: true });
                                     }
                                 }).catch(err => {
                                     console.log(err);

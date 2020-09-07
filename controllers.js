@@ -10,7 +10,9 @@ const methodOverride = require('method-override');
 const router = express.Router();
 let mongoconnection = require('./db/db_connect');
 var dbfunctions = require('./db/dboperations');
-let mongouri = 'mongodb://localhost:27017/object_storage naveen -u 1BI16cs413 -p --auth';
+//let mongouri = 'mongodb://localhost:27017/object_storage';
+let mongouri = 'mongodb+srv://naveen:1BI16cs413@cluster0.w2z5t.mongodb.net/object_storage?retryWrites=true&w=majority';
+//let mongouri = 'mongodb://localhost:27017/object_storage naveen -u 1BI16cs413 -p --auth';
 let gfs;
 
 let conn = mongoose.createConnection(mongouri);
@@ -386,22 +388,22 @@ router.post('/get_Allfiledetails', (req, res) => {
 
 router.post('/insertuser', (req, res) => {
     try {
-        let sess = req.session;
-        let token = req.headers['token'];
-        if (token == sess.token) {
-            dbfunctions.insertuser(req).then((result) => {
-                if (result) {
-                    res.status(200).json({ message: "Insert sucessfull", status: true });
-                } else {
-                    res.status(200).json({ message: "User Already exists", status: false });
-                }
-            }).catch((err) => {
-                //console.log(err);
-                res.status(500).json({ message: "Data base error", status: false });
-            })
-        } else {
-            res.status(404).json({ message: "Token MissMatch", status: false });
-        }
+        /* let sess = req.session;
+         let token = req.headers['token'];
+         if (token == sess.token) {*/
+        dbfunctions.insertuser(req).then((result) => {
+            if (result) {
+                res.status(200).json({ message: "Insert sucessfull", status: true });
+            } else {
+                res.status(200).json({ message: "User Already exists", status: false });
+            }
+        }).catch((err) => {
+            //console.log(err);
+            res.status(500).json({ message: "Data base error", status: false });
+        })
+        /*   } else {
+               res.status(404).json({ message: "Token MissMatch", status: false });
+           }*/
     } catch (err) {
         console.log(err);
         res.status(404).json({ message: "Please include Api Token", status: false });
